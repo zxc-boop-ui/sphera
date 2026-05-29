@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Multiple Window 3D Scene</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            background: #000;
+            font-family: sans-serif;
+        }
+
+        canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+
+        .title {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            font-size: 50px;
+            font-style: italic;
+            z-index: 10;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="title">Multiple Window 3D Scene</div>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+
+        function resize() {
+            canvas.width = innerWidth;
+            canvas.height = innerHeight;
+        }
+        resize();
+
+        window.addEventListener("resize", resize);
+
+        const channel = new BroadcastChannel("multi-window-sync");
+
+        const myId = Math.random().toString(36).substr(2, 9);
+
+        let windowsData = {};
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+
+                this.vx = (Math.random() - 0.5) * 3;
+                this.vy = (Math.random() - 0.5) * 3;
+
+                this.radius = Math.random() * 3 + 1;
+
+                this.color = Math.random() > 0.5
+                    ? "rgba(0,255,180,0.8)"
+                    : "rgba(255,0,80,0.8)";
+            }
+
+            update() {
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                if (this.x < 0 || this.x > canvas.width) {
+                    this.vx *= -1;
+                }
+
+                if (this.y < 0 || this.y > canvas.height) {
+                    this.vy *= -1;
+                }
+            }
+
+            draw() {
+
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+
+                ctx.fillStyle = this.color;
+
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = this.color;
+
+                ctx.fill();
+            }
+        }
+
+        const particles = [];
+
+        for (let i = 0; i < 140; i++) {
+            particles.push(new Particle());
+        }
+
+        function connect() {
+
+            for (let a = 0; a < particles.length; a++) {
+
+                for (let b = a; b < particles.length; b++) {
+
+                    let dx = particles[a].x - particles[b].x;
+                    let dy = particles[a].y - particles[b].y;
+
+                    let dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist < 120) {
+
+                        ctx.beginPath();
+
+                        ctx.strokeStyle =
+                            rgba(255, 255, 255, ${ 1-dist / 120 });
+
+                        ctx.lineWidth = 1;
+
+                        ctx.moveTo(
+                            particles[a].x,
+                            particles[a].y
+                        );
+
+                        ctx.lineTo(
+                            particles[b].x,
+                            particles[b].y
+                        );
+
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        function drawWindows() {
+
+            for (let id in windowsData) {
+
+                let w = windowsData[id];
+
+                ctx.beginPath();
+
+                ctx.rect(
+                    w.x,
+                    w.y,
+                    220,
+                    130
+                );
+
+                ctx.strokeStyle = "cyan";
+
+                ctx.lineWidth = 2;
+
+                ctx.shadowBlur = 25;
+                ctx.shadowColor = "cyan";
+
+                ctx.stroke();
+            }
+        }
+
+        function animate() {
+
+            ctx.fillStyle = "rgba(0,0,0,0.15)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+
+            connect();
+
+            drawWindows();
+
+            channel.postMessage({
+                id: myId,
+                x: window.screenX,
+                y: window.screenY
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        channel.onmessage = (e) => {
+
+            if (e.data.id !== myId) {
+
+                windowsData[e.data.id] = {
+
+                    x:
+                        (e.data.x - screenX) / 2 +
+                        canvas.width / 2 - 110,
+
+                    y:
+                        (e.data.y - screenY) / 2 +
+                        canvas.height / 2 - 65
+                };
+            }
+        };
+
+        animate();
+    </script>
+
+</body>
+
+</html>
